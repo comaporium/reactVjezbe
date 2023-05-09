@@ -1,56 +1,101 @@
 import { useState, useRef, useEffect } from 'react';
 import React from 'react'
-import TodoList from './TodoList'
+import ListaZadataka from './ListaZadataka'
 
 function App() {
-  const [trenutniZadaci, setTrenutniZadaci] = useState([])
+  const [listaZadataka, azurirajListuZadataka] = useState([])
   const zadatakNameRef = useRef()
-  const localStorageKey = 'zadaciApp.zadaci'
+  const linkZaDohvacanjeZadataka = 'https://localhost:7205/api/Zadaci/sviZadaci'
+  const linkZaEditStanja = 'https://localhost:7205/api/Zadaci/azurirajZadatak/'
+  const linkZaDodavanjeJednoimenogZadatka = 'https://localhost:7205/api/Zadaci/dodajZadatak?nazivZadatka='
+  const linkZaBrisanje = 'https://localhost:7205/api/Zadaci/obrisiZadatak/'
 
   useEffect(()=>{
-    const storaniZadaci = JSON.parse(localStorage.getItem(localStorageKey))
-    setTrenutniZadaci(storaniZadaci)
-  },[])
+    fetchZadataka();
+  }, [])
 
-  useEffect(()=>{
-    localStorage.setItem(localStorageKey, JSON.stringify(trenutniZadaci))
-    console.log(localStorage);  
-  },[trenutniZadaci])
+  const delay = ms => new Promise(
+    resolve => setTimeout(resolve, ms)
+  );
 
   function AddZadatakHandler(){
-    const imeZadatka = zadatakNameRef.current.value
-    if(imeZadatka === "") return
-    let idZadataka = Math.floor(Math.random() * 10000)
-    var noviZadatak = {
-      id: idZadataka,
-      name: imeZadatka,
-      complete: false
-    }
-    setTrenutniZadaci(trenutnaListaZadataka =>{
-      return[...trenutnaListaZadataka, noviZadatak]
-    })
-    zadatakNameRef.current.value = null
+    if(zadatakNameRef.current.value == "") return
+    dodajNoviZadatak(zadatakNameRef.current.value);
+    zadatakNameRef.current.value = "";
+    getNovuListu()
   }
 
-  function togleCheck(id){
-    const novaListaTrenutnihZadataka = [...trenutniZadaci]
-    const zadatakZaCekiranje = novaListaTrenutnihZadataka.find(x => x.id === id)
-    zadatakZaCekiranje.complete = !zadatakZaCekiranje.complete
-    setTrenutniZadaci(novaListaTrenutnihZadataka)
+  async function dodajNoviZadatak(naziv){
+    const response = await fetch(linkZaDodavanjeJednoimenogZadatka + naziv,
+      {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type' : 'application/json'
+        }});
+    if(!response.ok) throw Error('Neuspješan fetch podataka!');
+  }
+
+  async function getNovuListu(){
+    await delay(5);
+    fetchZadataka();
+  }
+
+  async function fetchZadataka(){
+    const response = await fetch(linkZaDohvacanjeZadataka,
+      {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Content-Type' : 'application/json'
+        }});
+    if(!response.ok) throw Error('Neuspješan fetch podataka!');
+    const nasiZadaci = await response.json();
+    azurirajListuZadataka(nasiZadaci);
+    console.log(listaZadataka);
+  }
+
+  function postaviKompletnostZadatka(id){
+    async function azurirajZadatak(){
+      const response = await fetch(linkZaEditStanja + id,
+        {
+          method: 'PUT',
+          mode: 'cors',
+          headers: {
+            'Content-Type' : 'application/json'
+          }});
+      if(!response.ok) throw Error('Neuspješan fetch podataka!');
+    }
+    azurirajZadatak()
+    getNovuListu()
   }
 
   function ciscenjeGotovihZadataka(){
-    const zadaciKojiNisuGotovi = trenutniZadaci.filter(zadatak => !zadatak.complete)
-    setTrenutniZadaci(zadaciKojiNisuGotovi)
+    async function obrisiZadatak(id){
+      const response = await fetch(linkZaBrisanje + id,
+        {
+          method: 'DELETE',
+          mode: 'cors',
+          headers: {
+            'Content-Type' : 'application/json'
+          }});
+      if(!response.ok) throw Error('Neuspješan fetch podataka!');
+    }
+    listaZadataka.map(zadatak =>{
+      if(zadatak.stanje === 1){
+        obrisiZadatak(zadatak.id)
+      }
+    })
+    getNovuListu()
   }
 
   return (
     <>
-      <TodoList trenutniZadaci = {trenutniZadaci} togleCheck = {togleCheck}/>
+      <ListaZadataka listaZadataka = {listaZadataka}  postaviKompletnostZadatka={postaviKompletnostZadatka}/>
       <input type='text' ref={zadatakNameRef}/>
       <button onClick={AddZadatakHandler}>Add</button>
       <button onClick={ciscenjeGotovihZadataka}>Clear Completed Tasks</button>
-      <div>{trenutniZadaci.filter(zadatak => !zadatak.complete).length} left to do.</div>
+      <div>{listaZadataka.filter(zadatak => !zadatak.stanje).length} left to do.</div>
     </>
   )
 }
